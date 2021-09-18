@@ -6829,4 +6829,17 @@ static inline bool ieee80211_is_tx_data(struct sk_buff *skb)
 	       ieee80211_is_data(hdr->frame_control);
 }
 
+static inline u8 ieee80211_get_vht_nss_from_capa(__le16 map)
+{
+	u16 mcs_map = le16_to_cpu(map);
+	u8 nss;
+
+	for (nss = 8; nss > 0; nss--) {
+		if (((mcs_map >> (2 * (nss - 1))) & 3) !=
+				IEEE80211_VHT_MCS_NOT_SUPPORTED)
+			break;
+	}
+	return nss;
+}
+
 #endif /* MAC80211_H */

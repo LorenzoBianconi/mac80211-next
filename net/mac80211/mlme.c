@@ -4876,16 +4876,12 @@ static u8 ieee80211_ht_vht_rx_chains(struct ieee80211_sub_if_data *sdata,
 
 	vht_cap_ie = ieee80211_bss_get_ie(cbss, WLAN_EID_VHT_CAPABILITY);
 	if (vht_cap_ie && vht_cap_ie[1] >= sizeof(*vht_cap)) {
+		__le16 tx_mcs_map;
 		u8 nss;
-		u16 tx_mcs_map;
 
 		vht_cap = (void *)(vht_cap_ie + 2);
-		tx_mcs_map = le16_to_cpu(vht_cap->supp_mcs.tx_mcs_map);
-		for (nss = 8; nss > 0; nss--) {
-			if (((tx_mcs_map >> (2 * (nss - 1))) & 3) !=
-					IEEE80211_VHT_MCS_NOT_SUPPORTED)
-				break;
-		}
+		tx_mcs_map = vht_cap->supp_mcs.tx_mcs_map;
+		nss = ieee80211_get_vht_nss_from_capa(tx_mcs_map);
 		/* TODO: use "Tx Highest Supported Long GI Data Rate" field? */
 		chains = max(chains, nss);
 	}

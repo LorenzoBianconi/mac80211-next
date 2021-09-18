@@ -2241,6 +2241,29 @@ bool ieee80211_parse_tx_radiotap(struct sk_buff *skb,
 		if (rate_flags & IEEE80211_TX_RC_MCS) {
 			info->control.rates[0].idx = rate;
 		} else if (rate_flags & IEEE80211_TX_RC_VHT_MCS) {
+			u8 max_nss = 1, max_mcs = 0;
+
+			if (sband) {
+				__le16 map = sband->vht_cap.vht_mcs.tx_mcs_map;
+
+				switch (le16_to_cpu(map) & 0x3) {
+				case IEEE80211_VHT_MCS_SUPPORT_0_7:
+					max_mcs = 7;
+					break;
+				case IEEE80211_VHT_MCS_SUPPORT_0_8:
+					max_mcs = 8;
+					break;
+				case IEEE80211_VHT_MCS_SUPPORT_0_9:
+					max_mcs = 9;
+					break;
+				default:
+					break;
+				}
+				max_nss = ieee80211_get_vht_nss_from_capa(map);
+			}
+
+			vht_mcs = min_t(u8, max_mcs, vht_mcs);
+			vht_nss = min_t(u8, max_nss, vht_nss);
 			ieee80211_rate_set_vht(info->control.rates, vht_mcs,
 					       vht_nss);
 		} else if (sband) {
