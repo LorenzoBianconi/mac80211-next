@@ -968,3 +968,43 @@ void cfg80211_cac_event(struct net_device *netdev,
 	nl80211_radar_notify(rdev, chandef, event, netdev, gfp);
 }
 EXPORT_SYMBOL(cfg80211_cac_event);
+
+int
+cfg80211_start_offchan_radar_detection(struct cfg80211_registered_device *rdev,
+				       struct wireless_dev *wdev,
+				       struct cfg80211_chan_def *chandef)
+{
+	int err = -EBUSY;
+
+	mutex_lock(&rdev->offchan_mutex);
+	if (rdev->offchan_radar_wdev)
+		goto out;
+
+	err = rdev_set_radar_offchan(rdev, chandef);
+	if (err)
+		goto out;
+
+	rdev->offchan_radar_wdev = wdev;
+out:
+	mutex_unlock(&rdev->offchan_mutex);
+	return err;
+}
+
+int
+cfg80211_stop_offchan_radar_detection(struct cfg80211_registered_device *rdev)
+{
+	int err = 0;
+
+	mutex_lock(&rdev->offchan_mutex);
+	if (!rdev->offchan_radar_wdev)
+		goto out;
+
+	err = rdev_set_radar_offchan(rdev, NULL);
+	if (err)
+		goto out;
+
+	rdev->offchan_radar_wdev = NULL;
+out:
+	mutex_unlock(&rdev->offchan_mutex);
+	return err;
+}

@@ -25,6 +25,8 @@ int __cfg80211_stop_ap(struct cfg80211_registered_device *rdev,
 	if (!wdev->beacon_interval)
 		return -ENOENT;
 
+	cfg80211_stop_offchan_radar_detection(rdev);
+
 	err = rdev_stop_ap(rdev, dev);
 	if (!err) {
 		wdev->conn_owner_nlportid = 0;

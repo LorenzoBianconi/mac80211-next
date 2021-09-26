@@ -498,6 +498,7 @@ use_default_name:
 	}
 
 	mutex_init(&rdev->wiphy.mtx);
+	mutex_init(&rdev->offchan_mutex);
 	INIT_LIST_HEAD(&rdev->wiphy.wdev_list);
 	INIT_LIST_HEAD(&rdev->beacon_registrations);
 	spin_lock_init(&rdev->beacon_registrations_lock);

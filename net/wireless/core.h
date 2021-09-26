@@ -84,6 +84,9 @@ struct cfg80211_registered_device {
 
 	struct delayed_work dfs_update_channels_wk;
 
+	struct mutex offchan_mutex; /* protect offchan_radar_wdev */
+	struct wireless_dev *offchan_radar_wdev;
+
 	/* netlink port which started critical protocol (0 means not started) */
 	u32 crit_proto_nlportid;
 
@@ -488,6 +491,14 @@ cfg80211_chandef_dfs_cac_time(struct wiphy *wiphy,
 			      const struct cfg80211_chan_def *chandef);
 
 void cfg80211_sched_dfs_chan_update(struct cfg80211_registered_device *rdev);
+
+int
+cfg80211_start_offchan_radar_detection(struct cfg80211_registered_device *rdev,
+				       struct wireless_dev *wdev,
+				       struct cfg80211_chan_def *chandef);
+
+int
+cfg80211_stop_offchan_radar_detection(struct cfg80211_registered_device *rdev);
 
 bool cfg80211_any_wiphy_oper_chan(struct wiphy *wiphy,
 				  struct ieee80211_channel *chan);
