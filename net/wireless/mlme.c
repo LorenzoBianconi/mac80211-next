@@ -969,6 +969,57 @@ void cfg80211_cac_event(struct net_device *netdev,
 }
 EXPORT_SYMBOL(cfg80211_cac_event);
 
+static void
+__cfg80211_offchan_cac_event(struct cfg80211_registered_device *rdev,
+			     struct wireless_dev *wdev,
+			     const struct cfg80211_chan_def *chandef,
+			     enum nl80211_radar_event event, gfp_t gfp)
+{
+	struct wiphy *wiphy = &rdev->wiphy;
+	struct net_device *netdev;
+
+	lockdep_assert_held(&rdev->offchan_mutex);
+
+	if (event != NL80211_RADAR_CAC_STARTED && !rdev->offchan_radar_wdev)
+		return;
+
+	switch (event) {
+	case NL80211_RADAR_CAC_FINISHED:
+		cfg80211_set_dfs_state(wiphy, chandef, NL80211_DFS_AVAILABLE);
+		memcpy(&rdev->cac_done_chandef, chandef, sizeof(*chandef));
+		queue_work(cfg80211_wq, &rdev->propagate_cac_done_wk);
+		cfg80211_sched_dfs_chan_update(rdev);
+		wdev = rdev->offchan_radar_wdev;
+		rdev->offchan_radar_wdev = NULL;
+		break;
+	case NL80211_RADAR_CAC_ABORTED:
+		wdev = rdev->offchan_radar_wdev;
+		rdev->offchan_radar_wdev = NULL;
+		break;
+	case NL80211_RADAR_CAC_STARTED:
+		WARN_ON(!wdev);
+		rdev->offchan_radar_wdev = wdev;
+		break;
+	default:
+		return;
+	}
+
+	netdev = wdev ? wdev->netdev : NULL;
+	nl80211_radar_notify(rdev, chandef, event, netdev, gfp);
+}
+
+void cfg80211_offchan_cac_event(struct wiphy *wiphy,
+				const struct cfg80211_chan_def *chandef,
+				enum nl80211_radar_event event, gfp_t gfp)
+{
+	struct cfg80211_registered_device *rdev = wiphy_to_rdev(wiphy);
+
+	mutex_lock(&rdev->offchan_mutex);
+	__cfg80211_offchan_cac_event(rdev, NULL, chandef, event, gfp);
+	mutex_unlock(&rdev->offchan_mutex);
+}
+EXPORT_SYMBOL(cfg80211_offchan_cac_event);
+
 int
 cfg80211_start_offchan_radar_detection(struct cfg80211_registered_device *rdev,
 				       struct wireless_dev *wdev,
@@ -984,7 +1035,8 @@ cfg80211_start_offchan_radar_detection(struct cfg80211_registered_device *rdev,
 	if (err)
 		goto out;
 
-	rdev->offchan_radar_wdev = wdev;
+	__cfg80211_offchan_cac_event(rdev, wdev, chandef,
+				     NL80211_RADAR_CAC_STARTED, GFP_KERNEL);
 out:
 	mutex_unlock(&rdev->offchan_mutex);
 	return err;
@@ -1003,7 +1055,8 @@ cfg80211_stop_offchan_radar_detection(struct cfg80211_registered_device *rdev)
 	if (err)
 		goto out;
 
-	rdev->offchan_radar_wdev = NULL;
+	__cfg80211_offchan_cac_event(rdev, NULL, NULL,
+				     NL80211_RADAR_CAC_ABORTED, GFP_KERNEL);
 out:
 	mutex_unlock(&rdev->offchan_mutex);
 	return err;
