@@ -1040,6 +1040,10 @@ cfg80211_start_offchan_radar_detection(struct cfg80211_registered_device *rdev,
 	unsigned int cac_time_ms;
 	int err = -EBUSY;
 
+	if (!wiphy_ext_feature_isset(&rdev->wiphy,
+				     NL80211_EXT_FEATURE_RADAR_OFFCHAN))
+		return -EOPNOTSUPP;
+
 	mutex_lock(&rdev->offchan_mutex);
 	if (rdev->offchan_radar_wdev)
 		goto out;
