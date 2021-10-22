@@ -969,6 +969,17 @@ void cfg80211_cac_event(struct net_device *netdev,
 }
 EXPORT_SYMBOL(cfg80211_cac_event);
 
+void cfg80211_offchan_cac_work(struct work_struct *work)
+{
+	struct delayed_work *delayed_work = to_delayed_work(work);
+	struct cfg80211_registered_device *rdev;
+
+	rdev = container_of(delayed_work, struct cfg80211_registered_device,
+			    offchan_cac_work);
+	cfg80211_offchan_cac_event(&rdev->wiphy, &rdev->offchan_radar_chandef,
+				   NL80211_RADAR_CAC_FINISHED, GFP_KERNEL);
+}
+
 static void
 __cfg80211_offchan_cac_event(struct cfg80211_registered_device *rdev,
 			     struct wireless_dev *wdev,
@@ -993,6 +1004,7 @@ __cfg80211_offchan_cac_event(struct cfg80211_registered_device *rdev,
 		rdev->offchan_radar_wdev = NULL;
 		break;
 	case NL80211_RADAR_CAC_ABORTED:
+		cancel_delayed_work(&rdev->offchan_cac_work);
 		wdev = rdev->offchan_radar_wdev;
 		rdev->offchan_radar_wdev = NULL;
 		break;
@@ -1025,6 +1037,7 @@ cfg80211_start_offchan_radar_detection(struct cfg80211_registered_device *rdev,
 				       struct wireless_dev *wdev,
 				       struct cfg80211_chan_def *chandef)
 {
+	unsigned int cac_time_ms;
 	int err = -EBUSY;
 
 	mutex_lock(&rdev->offchan_mutex);
@@ -1035,8 +1048,15 @@ cfg80211_start_offchan_radar_detection(struct cfg80211_registered_device *rdev,
 	if (err)
 		goto out;
 
+	cac_time_ms = cfg80211_chandef_dfs_cac_time(&rdev->wiphy, chandef);
+	if (!cac_time_ms)
+		cac_time_ms = IEEE80211_DFS_MIN_CAC_TIME_MS;
+
+	rdev->offchan_radar_chandef = *chandef;
 	__cfg80211_offchan_cac_event(rdev, wdev, chandef,
 				     NL80211_RADAR_CAC_STARTED, GFP_KERNEL);
+	queue_delayed_work(cfg80211_wq, &rdev->offchan_cac_work,
+			   msecs_to_jiffies(cac_time_ms));
 out:
 	mutex_unlock(&rdev->offchan_mutex);
 	return err;
